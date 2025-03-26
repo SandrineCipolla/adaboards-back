@@ -15,7 +15,7 @@ declare module 'express' {
 }
 
 //Middleware
-const authenticationMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+const authenticationMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction):any => {
     const token = req.headers.authorization;
     if (!token) return res.status(401).send('Unauthorized');
     jwt.verify(token, JWT_SECRET, (err,user) => {
@@ -51,5 +51,10 @@ app.post('/api/auth/register', async (req, res) => {
 
     res.status(201).json({message: 'User created successfully'});
 });
+
+//Routes protégées
+app.get('api/protected', authenticationMiddleware, (req: express.Request, res: express.Response) => {
+ res.json({message: `Hello ${req.user.userId}`});
+})
 
 module.exports = router;
