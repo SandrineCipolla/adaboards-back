@@ -11,8 +11,12 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
+    "@types/jest": "^29.5.14",
     "@types/jsonwebtoken": "^9.0.9",
+    "jest": "^29.7.0",
+    "jest-mock-extended": "^4.0.0-beta1",
     "prisma": "^6.5.0",
+    "ts-jest": "^29.3.0",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.8.2"
   },
@@ -21,10 +25,11 @@
   "description": "backend",
   "main": "index.js",
   "scripts": {
-    "test": "test",
+    "test": "jest --passWithNoTests",
     "start": "nodemon src/app.ts",
     "postinstall": "prisma generate"
   },
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com/SandrineCipolla/adaboards-back.git"
