@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import {PrismaClient} from '@prisma/client';
-
+import cors from "cors";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -14,6 +14,14 @@ app.get('/', async (req: Request, res: Response) => {
 });
 
 app.use(express.json());
+
+app.use(
+    cors({
+        origin: "*",
+        methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+        allowedHeaders: 'Content-Type,Authorization'
+    })
+);
 app.use("/api", require("./routes/usersRoutes"));
 
 app.listen(port, () => {

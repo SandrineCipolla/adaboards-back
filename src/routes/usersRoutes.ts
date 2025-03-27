@@ -14,11 +14,20 @@ declare module 'express' {
     }
 }
 
+
+// const password = "test";
+// const hashedPassword = "$2b$10$GPSLEbbyb6FCO8kesEfKReQNo6V3f1maAhAOk9laFF3IE.wHOTFG2";
+//
+// bcrypt.compare(password, hashedPassword, (err, result) => {
+//     console.log("Mot de passe valide ?", result); // Doit afficher true si tout est OK
+// });
+
 //Middleware
 const authenticationMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction):any => {
-    const token = req.headers.authorization;
+    const token = req.headers.authorization?.split(' ')[1];
     if (!token) return res.status(401).send('Unauthorized');
     jwt.verify(token, JWT_SECRET, (err,user) => {
+        console.log(err)
         if (err) return res.status(403).send('Forbidden');
         req.user = user;
         next();
@@ -30,11 +39,12 @@ const authenticationMiddleware = (req: express.Request, res: express.Response, n
 app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body;
     const user = await prisma.user.findUnique({ where: { email } });
-    if (user && user.password === password) {
+    if (user && password === user.password) {
         const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
         res.json({ token });
     } else {
-        res.status(401).send('Invalid credentials');
+        console.log("Invalid credentials response sent");
+        res.status(401).json({ error: 'Invalid credentials' });
     }
 });
 
@@ -47,14 +57,30 @@ app.post('/api/auth/register', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { fullname, email, password } });
+    const user = await prisma.user.create({ data: { fullname, email, password: hashedPassword } });
 
     res.status(201).json({message: 'User created successfully'});
 });
 
+
 //Routes protégées
-app.get('api/protected', authenticationMiddleware, (req: express.Request, res: express.Response) => {
- res.json({message: `Hello ${req.user.userId}`});
+app.get('/api/protected', authenticationMiddleware, async (req: express.Request, res: express.Response) => {
+    const user = await prisma.user.findUnique({where: {id: req.user.userId}});
+    res.json({message: `Hello ${user?.fullname}`});
 })
+
+app.get('/api/boards', authenticationMiddleware, async (req: express.Request, res: express.Response) => {
+    const userId = req.user.userId;
+    const boards = await prisma.board.findMany({
+        where: {User_Board: {
+                some: {
+                    userId: userId
+                }
+            }
+        }
+    });
+    res.json(boards);
+});
+
 
 module.exports = router;
