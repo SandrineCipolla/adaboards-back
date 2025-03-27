@@ -3,6 +3,7 @@ import express from "express";
 
 import jwt from 'jsonwebtoken';
 import {app, prisma} from "../app";
+import {Role, Column} from "@prisma/client";
 
 const router = express.Router();
 const JWT_SECRET = 'secret';
@@ -56,8 +57,8 @@ app.post('/api/auth/register', async (req, res) => {
         res.status(400).json({error: 'Please fill all the fields'});
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { fullname, email, password: hashedPassword } });
+    // const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({ data: { fullname, email, password} });
 
     res.status(201).json({message: 'User created successfully'});
 });
@@ -81,6 +82,67 @@ app.get('/api/boards', authenticationMiddleware, async (req: express.Request, re
     });
     res.json(boards);
 });
+
+app.post('/api/boards', authenticationMiddleware, async (req: express.Request, res: express.Response) => {
+        const userId = req.user.userId;
+        const role=Role.OWNER
+        const { title } = req.body;
+
+        if (!title) {
+            res.status(400).json({ error: 'Board title is required' });
+        }
+        const newBoard = await prisma.board.create({
+            data: {
+                title,
+                User_Board: {
+                    create: {
+                       userId,
+                        role
+                    }
+                }
+            },
+            include: {
+                User_Board: true
+            }
+        });
+        res.status(201).json(newBoard);
+});
+
+app.post('api/boards/:boardId/tasks',authenticationMiddleware,async (req: express.Request, res: express.Response) => {
+        const boardId=req.params.boardId;
+        // const column =Column.TODO
+
+        const {title}=req.body;
+
+    if (!title) {
+        res.status(400).json({ error: 'Task title is required' });
+    }
+
+    const boardExists = await prisma.board.findUnique({
+        where: { id: Number(boardId) }
+    });
+
+    if (!boardExists) {
+        res.status(404).json({ error: 'Board not found' });
+    }
+
+
+    const newTask = await prisma.task.create({
+        data: {
+            title,
+            // column,
+            board :{
+                connect:{
+                    id:Number(boardId)
+                }
+            }
+        },
+        include: {
+            board:true
+        }
+    });
+    res.status(201).json(newTask);
+} )
 
 
 module.exports = router;
