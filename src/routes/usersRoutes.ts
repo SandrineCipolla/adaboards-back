@@ -8,6 +8,8 @@ import {Role, Column} from "@prisma/client";
 const router = express.Router();
 const JWT_SECRET = 'secret';
 import bcrypt from 'bcryptjs';
+import {UserController} from "../controllers/userController";
+import {BoardController} from "../controllers/boardController";
 
 declare module 'express' {
     interface Request {
@@ -15,6 +17,8 @@ declare module 'express' {
     }
 }
 
+const userController = new UserController();
+const boardController= new BoardController();
 
 // const password = "test";
 // const hashedPassword = "$2b$10$GPSLEbbyb6FCO8kesEfKReQNo6V3f1maAhAOk9laFF3IE.wHOTFG2";
@@ -25,42 +29,55 @@ declare module 'express' {
 
 //Middleware
 const authenticationMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction):any => {
+    console.log('Authenticating user...');
     const token = req.headers.authorization?.split(' ')[1];
-    if (!token) return res.status(401).send('Unauthorized');
-    jwt.verify(token, JWT_SECRET, (err,user) => {
-        console.log(err)
-        if (err) return res.status(403).send('Forbidden');
-        req.user = user;
+    if (!token) {
+        console.log('No token found');
+        return res.status(401).send('Unauthorized');
+    }
+    // jwt.verify(token, JWT_SECRET, (err,user) => {
+    //     console.log(err)
+    //     if (err) return res.status(403).send('Forbidden');
+    //     req.user = user;
+    //     next();
+    // });
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        console.log('Token is valid', decoded);
+        req.user = decoded;
         next();
-    });
+    } catch (err) {
+        console.log('Invalid token', err);
+        return res.status(401).json({ error: 'Invalid or expired token' });
+    }
 };
 
 
 //Connexion
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (user && password === user.password) {
-        const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+    try {
+        const { email, password } = req.body;
+        const token = await userController.userLogin(email, password);
         res.json({ token });
-    } else {
-        console.log("Invalid credentials response sent");
-        res.status(401).json({ error: 'Invalid credentials' });
+    } catch (error ) {
+        const err = error as Error
+        res.status(400).json({ error: err.message });
     }
 });
 
 //Register
 app.post('/api/auth/register', async (req, res) => {
-    const {fullname, email, password} = req.body;
-
-    if(!fullname || !email || !password){
-        res.status(400).json({error: 'Please fill all the fields'});
+    try {
+        const { fullname, email, password } = req.body;
+        const registredUser = await userController.userRegister(fullname, email, password);
+        res.status(201).json(registredUser);
+    } catch (error) {
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred' });
+        }
     }
-
-    // const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({ data: { fullname, email, password} });
-
-    res.status(201).json({message: 'User created successfully'});
 });
 
 
@@ -71,78 +88,72 @@ app.get('/api/protected', authenticationMiddleware, async (req: express.Request,
 })
 
 app.get('/api/boards', authenticationMiddleware, async (req: express.Request, res: express.Response) => {
-    const userId = req.user.userId;
-    const boards = await prisma.board.findMany({
-        where: {User_Board: {
-                some: {
-                    userId: userId
-                }
-            }
+    try {
+        const userId = req.user.userId;
+        const boards = await boardController.getBoards(userId);
+        res.json(boards);
+    } catch (error) {
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred' });
         }
-    });
-    res.json(boards);
+    }
 });
 
 app.post('/api/boards', authenticationMiddleware, async (req: express.Request, res: express.Response) => {
-        const userId = req.user.userId;
-        const role=Role.OWNER
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'User not authenticated' });
+        }
+
         const { title } = req.body;
 
-        if (!title) {
-            res.status(400).json({ error: 'Board title is required' });
-        }
-        const newBoard = await prisma.board.create({
-            data: {
-                title,
-                User_Board: {
-                    create: {
-                       userId,
-                        role
-                    }
-                }
-            },
-            include: {
-                User_Board: true
-            }
-        });
+        const newBoard = await boardController.createBoards(title, userId);
         res.status(201).json(newBoard);
+
+    } catch (error) {
+
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred' });
+        }
+    }
+
 });
 
 app.post('api/boards/:boardId/tasks',authenticationMiddleware,async (req: express.Request, res: express.Response) => {
-        const boardId=req.params.boardId;
-        // const column =Column.TODO
-
-        const {title}=req.body;
-
-    if (!title) {
-        res.status(400).json({ error: 'Task title is required' });
-    }
-
-    const boardExists = await prisma.board.findUnique({
-        where: { id: Number(boardId) }
-    });
-
-    if (!boardExists) {
-        res.status(404).json({ error: 'Board not found' });
-    }
-
-
-    const newTask = await prisma.task.create({
-        data: {
-            title,
-            // column,
-            board :{
-                connect:{
-                    id:Number(boardId)
-                }
-            }
-        },
-        include: {
-            board:true
+//     app.post('/api/boards/:boardId/tasks', async (req: express.Request, res: express.Response) => {
+    console.log('POST /api/boards/:boardId/tasks called');
+    try {
+        const userId = req.user?.userId;
+        if (!userId) {
+            res.status(401).json({ error: 'User not authenticated' });
         }
-    });
-    res.status(201).json(newTask);
-} )
+        const boardId = Number(req.params.boardId);
+        console.log('boardId:', boardId);
+
+        if (isNaN(boardId)) {
+            res.status(400).json({ error: 'Invalid board ID' });
+        }
+
+        const { title } = req.body;
+        console.log('title:', title);
+
+        const newTask = await boardController.createTasks(title, Number(boardId));
+        console.log('newTask:', newTask);
+        res.status(201).json(newTask);
+
+    } catch (error) {
+        if (error instanceof Error) {
+            res.status(400).json({ error: error.message });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred' });
+        }
+    }
+});
 
 
 module.exports = router;
