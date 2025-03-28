@@ -17,8 +17,8 @@ declare module 'express' {
     }
 }
 
-const userController = new UserController();
-const boardController= new BoardController();
+const userController = new UserController(prisma);
+const boardController= new BoardController(prisma);
 
 // const password = "test";
 // const hashedPassword = "$2b$10$GPSLEbbyb6FCO8kesEfKReQNo6V3f1maAhAOk9laFF3IE.wHOTFG2";

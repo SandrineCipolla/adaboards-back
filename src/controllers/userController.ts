@@ -2,7 +2,7 @@ import {PrismaClient} from '@prisma/client';
 import jwt from "jsonwebtoken";
 
 import type { PrismaClient as PrismaClientType } from "@prisma/client";
-const prisma = new PrismaClient();
+
 const JWT_SECRET = 'secret';
 
 export class UserController {
