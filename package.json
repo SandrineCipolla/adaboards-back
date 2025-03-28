@@ -26,6 +26,7 @@
   "main": "index.js",
   "scripts": {
     "test": "jest --passWithNoTests",
+    "test:coverage": "jest --coverage",
     "start": "nodemon src/app.ts",
     "postinstall": "prisma generate"
   },
